@@ -91,6 +91,9 @@
 /* FD used to pass data to a persistent process */
 #define _HF_PERSISTENT_FD 1023
 
+/* Name of envvar which carries the gadget report fd to the target */
+#define _HF_TEAPOT_REPORT_FD_ENV "HF_TEAPOT_REPORT_FD"
+
 /* Input file as a string */
 #define _HF_INPUT_FILE_PATH "/dev/fd/" HF_XSTR(_HF_INPUT_FD)
 
@@ -303,6 +306,7 @@ typedef struct {
         size_t verifiedCrashesCnt;
         size_t blCrashesCnt;
         size_t timeoutedCnt;
+        size_t gadgetSitesCnt;
     } cnts;
     struct {
         bool enabled;
@@ -375,6 +379,10 @@ typedef struct {
     bool         tmOutSignaled;
     char*        args[_HF_ARGS_MAX + 1];
     int          perThreadCovFeedbackFd;
+    int          gadgetReadFd;
+    int          gadgetWriteFd;
+    size_t       gadgetBufLen;
+    char         gadgetBuf[4096];
     unsigned     triesLeft;
     dynfile_t*   current;
     hwcnt_t      hwCnts;

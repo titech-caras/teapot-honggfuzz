@@ -39,6 +39,7 @@
 #include <unistd.h>
 
 #include "arch.h"
+#include "gadget.h"
 #include "honggfuzz.h"
 #include "input.h"
 #include "libhfcommon/common.h"
@@ -257,7 +258,7 @@ static void fuzz_perfFeedback(run_t* run) {
 
             dprintf(run->global->io.statsFileFd,
                 "%lu, %lu, %lu, %lu, "
-                "%" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
+                "%" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %" PRIu64 ", %zu\n",
                 curr_sec,                                 /* unix_time */
                 run->global->timing.lastCovUpdate,        /* last_cov_update */
                 curr_exec_cnt,                            /* total_exec */
@@ -266,7 +267,8 @@ static void fuzz_perfFeedback(run_t* run) {
                 run->global->cnts.uniqueCrashesCnt,       /* unique_crashes */
                 run->global->cnts.timeoutedCnt,           /* hangs */
                 run->global->feedback.hwCnts.softCntEdge, /* edge_cov */
-                run->global->feedback.hwCnts.softCntPc    /* block_cov */
+                run->global->feedback.hwCnts.softCntPc,   /* block_cov */
+                ATOMIC_GET(run->global->cnts.gadgetSitesCnt) /* gadget_sites */
             );
         }
 
@@ -315,6 +317,7 @@ static bool fuzz_runVerifier(run_t* run) {
         if (!subproc_Run(run)) {
             LOG_F("subproc_Run()");
         }
+        gadget_drain(run);
 
         /* If stack hash doesn't match skip name tag and exit */
         if (run->backtrace != backtrace) {
@@ -447,6 +450,7 @@ static void fuzz_fuzzLoop(run_t* run) {
     if (!subproc_Run(run)) {
         LOG_F("Couldn't run fuzzed command");
     }
+    gadget_drain(run);
 
     if (run->global->feedback.dynFileMethod != _HF_DYNFILE_NONE) {
         fuzz_perfFeedback(run);
@@ -499,6 +503,7 @@ static void fuzz_fuzzLoopSocket(run_t* run) {
         run->pid = 0;    // make subproc_Run() restart it on next iteration
         return;
     }
+    gadget_drain(run);
 
     LOG_D("------[ 3: feedback");
     if (run->global->feedback.dynFileMethod != _HF_DYNFILE_NONE) {
@@ -564,6 +569,11 @@ static void* fuzz_threadNew(void* arg) {
     if (!arch_archThreadInit(&run)) {
         LOG_F("Could not initialize the thread");
     }
+
+    gadget_initRun(&run);
+    defer {
+        gadget_closeRun(&run);
+    };
 
     for (;;) {
         /* Check if dry run mode with verifier enabled */

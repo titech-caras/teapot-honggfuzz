@@ -335,6 +335,26 @@ static bool subproc_PrepareExecv(run_t* run) {
         setenv(_HF_LOG_LEVEL_ENV, llstr, 1);
     }
 
+    /* The Teapot gadget report channel. Clear FD_CLOEXEC so the pipe write end
+     * survives execve() in both fork and persistent mode. */
+    if (run->gadgetWriteFd != -1) {
+        int fdFlags = fcntl(run->gadgetWriteFd, F_GETFD);
+        if (fdFlags == -1) {
+            PLOG_E("fcntl(%d, F_GETFD)", run->gadgetWriteFd);
+            return false;
+        }
+        if (fcntl(run->gadgetWriteFd, F_SETFD, fdFlags & ~FD_CLOEXEC) == -1) {
+            PLOG_E("fcntl(%d, F_SETFD)", run->gadgetWriteFd);
+            return false;
+        }
+        char fdstr[32];
+        snprintf(fdstr, sizeof(fdstr), "%d", run->gadgetWriteFd);
+        if (setenv(_HF_TEAPOT_REPORT_FD_ENV, fdstr, 1) == -1) {
+            PLOG_E("setenv(%s)", _HF_TEAPOT_REPORT_FD_ENV);
+            return false;
+        }
+    }
+
     sigset_t sset;
     sigemptyset(&sset);
     if (sigprocmask(SIG_SETMASK, &sset, NULL) == -1) {
