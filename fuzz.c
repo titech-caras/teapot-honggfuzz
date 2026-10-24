@@ -501,6 +501,9 @@ static void fuzz_fuzzLoopSocket(run_t* run) {
            */
         LOG_D("------[ 2.1: Target down, will restart it");
         run->pid = 0;    // make subproc_Run() restart it on next iteration
+        /* The target may have reported gadgets before the external driver
+         * lost it, so drain the channel before returning. */
+        gadget_drain(run);
         return;
     }
     gadget_drain(run);

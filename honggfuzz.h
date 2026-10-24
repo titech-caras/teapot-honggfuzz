@@ -307,6 +307,7 @@ typedef struct {
         size_t blCrashesCnt;
         size_t timeoutedCnt;
         size_t gadgetSitesCnt;
+        uint64_t gadgetDroppedCnt;
     } cnts;
     struct {
         bool enabled;
