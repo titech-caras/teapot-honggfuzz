@@ -314,6 +314,24 @@ void gadget_initRun(run_t* run) {
         PLOG_W("pipe2(teapot gadget channel)");
         return;
     }
+    /* Move both ends before any child remaps (including the persistent socket).
+     * Otherwise dup2() can replace the report writer with a bitmap/input file,
+     * or a later close can close a reserved descriptor instead of the reader. */
+    for (size_t i = 0; i < ARRAYSIZE(fds); i++) {
+        if (fds[i] > STDERR_FILENO &&
+            (fds[i] < _HF_PERTHREAD_BITMAP_FD || fds[i] > _HF_PERSISTENT_FD)) {
+            continue;
+        }
+        int fd = fcntl(fds[i], F_DUPFD_CLOEXEC, _HF_PERSISTENT_FD + 1);
+        if (fd == -1) {
+            PLOG_W("fcntl(F_DUPFD_CLOEXEC) on the Teapot gadget channel");
+            close(fds[0]);
+            close(fds[1]);
+            return;
+        }
+        close(fds[i]);
+        fds[i] = fd;
+    }
     run->gadgetReadFd  = fds[0];
     run->gadgetWriteFd = fds[1];
 
