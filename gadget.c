@@ -2,7 +2,7 @@
  * honggfuzz - Teapot gadget reporting channel
  * -----------------------------------------
  *
- * libcheckpoint reports each gadget as one "TPGADGET 1 <type> <site>" line on
+ * libcheckpoint reports each gadget as one "TPGADGET 2 <type> <site> <tag>" line on
  * the file descriptor named by HF_TEAPOT_REPORT_FD. This file creates that
  * channel, drains it after every iteration, and keeps the first input that
  * reaches each gadget site.
@@ -36,6 +36,7 @@
 #define GADGET_SITE_TABLE_BITS 16
 #define GADGET_SITE_TABLE_SIZE (1U << GADGET_SITE_TABLE_BITS)
 #define GADGET_RECORD_PREFIX   "TPGADGET 1 "
+#define GADGET_RECORD_PREFIX_V2 "TPGADGET 2 "
 #define GADGET_DROP_PREFIX     "TPDROP 1 "
 #define GADGET_PIPE_TARGET     (1024U * 1024U)
 
@@ -183,11 +184,12 @@ static bool gadget_parseUnsigned(const char* s, uint64_t* value) {
     return true;
 }
 
-static bool gadget_parseRecord(char* line, uint64_t* site, long* type) {
+static bool gadget_parseRecord(char* line, uint64_t* site, long* type, uint64_t* tag) {
     static const char prefix[] = GADGET_RECORD_PREFIX;
     const size_t      prefixLen = sizeof(prefix) - 1;
 
-    if (strncmp(line, prefix, prefixLen) != 0) {
+    bool tagged = strncmp(line, GADGET_RECORD_PREFIX_V2, prefixLen) == 0;
+    if (!tagged && strncmp(line, prefix, prefixLen) != 0) {
         return false;
     }
     const char* cursor = line + prefixLen;
@@ -197,7 +199,15 @@ static bool gadget_parseRecord(char* line, uint64_t* site, long* type) {
         return false;
     }
     cursor++;
-    if (!gadget_parseSite(&cursor, site) || *cursor != '\0') {
+    if (!gadget_parseSite(&cursor, site)) {
+        return false;
+    }
+    *tag = 0;
+    if (tagged) {
+        if (*cursor++ != ' ' || !gadget_parseUnsigned(cursor, tag) || *tag > 255) {
+            return false;
+        }
+    } else if (*cursor != '\0') {
         return false;
     }
 
@@ -205,7 +215,7 @@ static bool gadget_parseRecord(char* line, uint64_t* site, long* type) {
     return true;
 }
 
-static void gadget_handleRecord(run_t* run, uint64_t site, long type) {
+static void gadget_handleRecord(run_t* run, uint64_t site, long type, uint64_t tag) {
     if (!gadget_firstSighting(site, type)) {
         return;
     }
@@ -228,7 +238,7 @@ static void gadget_handleRecord(run_t* run, uint64_t site, long type) {
         return;
     }
 
-    LOG_I("New gadget site type=%ld addr=0x%016" PRIx64 ", saved input as '%s'", type, site, fname);
+    LOG_I("New gadget site type=%ld addr=0x%016" PRIx64 " tag=0x%02" PRIx64 ", saved input as '%s'", type, site, tag, fname);
 }
 
 static void gadget_handleDrop(run_t* run, const char* line) {
@@ -264,10 +274,10 @@ static void gadget_processBuffer(run_t* run) {
             if (strncmp(base, GADGET_DROP_PREFIX, sizeof(GADGET_DROP_PREFIX) - 1) == 0) {
                 gadget_handleDrop(run, base);
             } else {
-                uint64_t site;
+                uint64_t site, tag;
                 long     type;
-                if (gadget_parseRecord(base, &site, &type)) {
-                    gadget_handleRecord(run, site, type);
+                if (gadget_parseRecord(base, &site, &type, &tag)) {
+                    gadget_handleRecord(run, site, type, tag);
                 } else {
                     LOG_W("Ignoring a malformed Teapot gadget record");
                 }

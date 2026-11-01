@@ -47,11 +47,18 @@ for mode in ('fork', 'persistent'):
                                       '--pad', str(pad), *args], cwd=work,
                                      stdout=subprocess.DEVNULL, stderr=err, timeout=10)
         info = (work / 'fd.txt').read_text().split() if (work / 'fd.txt').exists() else []
-        files = {p.name.split('.')[2]: p.read_bytes().hex() for p in work.glob('GADGET.*')}
+        files = {'.'.join(p.name.split('.')[1:3]): p.read_bytes().hex() for p in work.glob('GADGET.*')}
         valid_fd = (len(info) == 3 and info[1:] == ['0', '1'] and
                     int(info[0]) > 2 and not 1018 <= int(info[0]) <= 1023)
-        saved = mode == 'persistent' or files == {'0000000000000041': '41'}
-        passed = process.returncode == 0 and valid_fd and saved
+        # Corpus enumeration may start with either seed; every record from the
+        # first iteration must retain that same input.
+        saved = mode == 'persistent' or files in (
+            {f'{kind}.0000000000000041': payload for kind in (1, 44, 45)}
+            for payload in ('41', '42'))
+        log = (work / 'fuzzer.log').read_text()
+        tagged = all(f'type={kind} addr=0x0000000000000041 tag=0x{tag:02x}' in log
+                     for kind, tag in ((1, 0), (44, 10), (45, 2)))
+        passed = process.returncode == 0 and valid_fd and saved and tagged
         results.append(dict(mode=mode, pad=pad, fd=info, files=files, passed=passed))
 (output / 'results.json').write_text(json.dumps(results, indent=2) + '\n')
 failed = [f"{r['mode']}-{r['pad']}" for r in results if not r['passed']]

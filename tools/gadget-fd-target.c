@@ -6,8 +6,8 @@
 #include <unistd.h>
 
 static void report(int fd, unsigned char input) {
-    char record[80];
-    int len = snprintf(record, sizeof(record), "TPGADGET 1 1 0x%x\n", input);
+    char record[256];
+    int len = snprintf(record, sizeof(record), "TPGADGET 1 1 0x%x\nTPGADGET 2 44 0x%x 10\nTPGADGET 2 45 0x%x 2\n", input, input, input);
     (void)write(fd, record, len);
 }
 
