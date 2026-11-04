@@ -77,6 +77,12 @@
 #define MAX_INSTR_SZ 4
 #endif
 
+typedef struct teapot_gadget_desc {
+    uint64_t gadget_addr, access_addr, ckpt_addr;
+
+    uint64_t gadget_type;
+} teapot_gadget_desc_t;
+
 #if defined(__i386__) || defined(__x86_64__)
 struct user_regs_32 {
     uint32_t ebx;
@@ -127,12 +133,6 @@ struct user_regs_64 {
     uint64_t fs;
     uint64_t gs;
 };
-
-typedef struct teapot_gadget_desc {
-    uint64_t gadget_addr, access_addr, ckpt_addr;
-
-    uint64_t gadget_type;
-} teapot_gadget_desc_t;
 
 union user_regs_t {
     struct user_regs_32 regs32;

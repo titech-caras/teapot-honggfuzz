@@ -24,7 +24,9 @@
 #include "linux/unwind.h"
 
 #include <endian.h>
+#if !defined(_HF_LINUX_NO_UNWIND)
 #include <libunwind-ptrace.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,6 +35,13 @@
 #include "libhfcommon/common.h"
 #include "libhfcommon/log.h"
 
+#if defined(_HF_LINUX_NO_UNWIND)
+/* Built without libunwind: no remote stack unwinding, so crash reports carry no
+ * backtrace. Runs with --linux_no_ptrace never unwind. */
+size_t arch_unwindStack(pid_t pid HF_ATTR_UNUSED, funcs_t* funcs HF_ATTR_UNUSED) {
+    return 0;
+}
+#else
 /*
  * WARNING: Ensure that _UPT-info structs are not shared between threads
  * http://www.nongnu.org/libunwind/man/libunwind-ptrace(3).html
@@ -253,6 +262,7 @@ size_t arch_unwindStack(pid_t pid, funcs_t* funcs) {
     return num_frames;
 }
 #endif /* defined(__ANDROID__) */
+#endif /* defined(_HF_LINUX_NO_UNWIND) */
 
 /*
  * Nested loop not most efficient approach, although it's assumed that list is

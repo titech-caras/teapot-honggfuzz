@@ -35,6 +35,7 @@ LIBS_CFLAGS ?= -fPIC -fno-stack-protector -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0 
 GREP_COLOR ?=
 BUILD_OSSFUZZ_STATIC ?= false # for https://github.com/google/oss-fuzz
 BUILD_LINUX_NO_BFD ?= false # for users who don't want to use libbfd/binutils
+BUILD_LINUX_NO_UNWIND ?= false # no libunwind: no backtraces, for cross builds
 
 REALOS = $(shell uname -s)
 OS ?= $(shell uname -s)
@@ -53,11 +54,18 @@ ifeq ($(OS)$(findstring Microsoft,$(KERNEL)),Linux) # matches Linux but excludes
                             -lopcodes -lbfd -liberty -lz \
                             -Wl,-Bdynamic
     else
-            ARCH_LDFLAGS += -lunwind-ptrace -lunwind-generic -lunwind  -llzma \
-                            -lopcodes -lbfd
+        ifneq ($(BUILD_LINUX_NO_UNWIND),true)
+            ARCH_LDFLAGS += -lunwind-ptrace -lunwind-generic -lunwind  -llzma
+        endif
+        ifneq ($(BUILD_LINUX_NO_BFD),true)
+            ARCH_LDFLAGS += -lopcodes -lbfd
+        endif
     endif
     ifeq ($(BUILD_LINUX_NO_BFD),true)
             ARCH_CFLAGS += -D_HF_LINUX_NO_BFD
+    endif
+    ifeq ($(BUILD_LINUX_NO_UNWIND),true)
+            ARCH_CFLAGS += -D_HF_LINUX_NO_UNWIND
     endif
     ARCH_LDFLAGS += -lrt -ldl -lm
 
